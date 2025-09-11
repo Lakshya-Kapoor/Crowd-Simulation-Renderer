@@ -171,11 +171,8 @@ class Utils {
       }
     }
 
-    const finalPoints = [];
-    for (const [x, y] of points) {
-      finalPoints.push([Math.round(x), Math.round(y)]);
-    }
+    points.map(([x, y]) => [Math.round(x), Math.round(y)]);
 
-    return finalPoints;
+    return points;
   }
 }

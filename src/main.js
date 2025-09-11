@@ -66,16 +66,22 @@ class WebGLAPP {
     this.positionBuffer = this.gl.createBuffer();
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
 
-    this.vertices = Utils.poissonDiskSampling(
+    const vertices = Utils.poissonDiskSampling(
       this.gl.canvas.width,
       this.gl.canvas.height,
       100,
       30
     );
-    this.flatVertices = new Float32Array(this.vertices.flat());
+    const delaunay = window.Delaunator.from(vertices);
+
+    this.triangleVertices = [];
+    delaunay.triangles.forEach((idx) => {
+      this.triangleVertices.push(vertices[idx][0], vertices[idx][1]);
+    });
+
     this.gl.bufferData(
       this.gl.ARRAY_BUFFER,
-      this.flatVertices,
+      new Float32Array(this.triangleVertices),
       this.gl.STATIC_DRAW
     );
 
@@ -118,8 +124,16 @@ class WebGLAPP {
       Utils.projectionMatrix(this.gl.canvas.width, this.gl.canvas.height)
     );
 
-    this.gl.uniform4f(this.colorUniformLocation, 0, 0, 0, 1);
-    this.gl.drawArrays(this.gl.POINTS, 0, this.flatVertices.length / 2);
+    for (let i = 0; i < this.triangleVertices.length; i += 6) {
+      this.gl.uniform4f(
+        this.colorUniformLocation,
+        Math.random(),
+        Math.random(),
+        Math.random(),
+        1
+      );
+      this.gl.drawArrays(this.gl.TRIANGLES, i / 2, 3);
+    }
   }
 
   constructor() {
