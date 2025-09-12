@@ -1,51 +1,56 @@
 <!DOCTYPE html>
 <html>
-  <style>
-    body {
-      background-color: bisque;
-    }
-    canvas {
-      border: 1px solid #ccc;
-    }
-
-    main {
-      display: flex;
-      gap: 40px;
-    }
-
-    .slider {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .slider input {
-      width: 300px;
-    }
-  </style>
+  <head>
+    <link rel="stylesheet" href="style.css" />
+  </head>
   <body>
+    <header>
+      <h1>Crowd Simulation Renderer</h1>
+      <p>
+        Rendering crowd and coloring primitives on the basis of population
+        densities
+      </p>
+    </header>
+
     <main>
       <canvas height="450" width="800"></canvas>
-      <div id="slider-container">
-        <div class="slider" id="translateX">
-          <label for="translateX">Translate X:</label>
-          <input type="range" />
-          <span class="value"></span>
+
+      <div id="controls">
+        <div class="control-container">
+          <h3>Obstacle control</h3>
+          <div class="action-container">
+            <div class="slider" id="translateX">
+              <label for="translateX">Translate X:</label>
+              <input type="range" />
+              <span class="value"></span>
+            </div>
+            <div class="slider" id="translateY">
+              <label for="translateY">Translate Y:</label>
+              <input type="range" />
+              <span class="value"></span>
+            </div>
+            <div class="slider" id="scale">
+              <label for="scale">Scale:</label>
+              <input type="range" />
+              <span class="value"></span>
+            </div>
+            <div class="slider" id="rotate">
+              <label for="rotate">Rotate:</label>
+              <input type="range" />
+              <span class="value"></span>
+            </div>
+          </div>
         </div>
-        <div class="slider" id="translateY">
-          <label for="translateY">Translate Y:</label>
-          <input type="range" />
-          <span class="value"></span>
-        </div>
-        <div class="slider" id="scale">
-          <label for="scale">Scale:</label>
-          <input type="range" />
-          <span class="value"></span>
-        </div>
-        <div class="slider" id="rotate">
-          <label for="rotate">Rotate:</label>
-          <input type="range" />
-          <span class="value"></span>
+
+        <div class="control-container">
+          <h3>Crowd control</h3>
+          <div class="action-container">
+            <div class="slider" id="crowdDensity">
+              <label for="crowdDensity">Crowd Density:</label>
+              <input type="range" />
+              <span class="value"></span>
+            </div>
+          </div>
         </div>
       </div>
     </main>

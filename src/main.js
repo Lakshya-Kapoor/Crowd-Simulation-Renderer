@@ -51,28 +51,7 @@ class WebGLAPP {
     this.gl.deleteProgram(program);
   }
 
-  transformObstacle() {
-    this.transformedObstacleVertices = [];
-
-    let transformationMatrix = Utils.multiplyManyMM(
-      Utils.translationMatrix(this.translate[0], this.translate[1]),
-      Utils.translationMatrix(this.canvas.width / 2, this.canvas.height / 2),
-      Utils.rotationMatrix(this.rotate),
-      Utils.scalingMatrix(this.scale, this.scale),
-      Utils.translationMatrix(-this.canvas.width / 2, -this.canvas.height / 2)
-    );
-
-    for (let i = 0; i < this.obstacleVertices.length; i++) {
-      const transformedVertex = Utils.multiplyMV(transformationMatrix, [
-        ...this.obstacleVertices[i],
-        1,
-      ]);
-
-      this.transformedObstacleVertices.push(transformedVertex.slice(0, 2));
-    }
-  }
-
-  initialize() {
+  initializeAndRender() {
     this.canvas = document.querySelector("canvas");
     this.gl = this.canvas.getContext("webgl");
 
@@ -103,8 +82,71 @@ class WebGLAPP {
       "u_color"
     );
 
+    // Boilerplate to setup canvas
+    this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
+    this.gl.clearColor(0, 0, 0, 0);
+
+    this.gl.useProgram(this.program);
+
+    this.gl.enableVertexAttribArray(this.positionAttributeLocation);
+    this.gl.vertexAttribPointer(
+      this.positionAttributeLocation,
+      2,
+      this.gl.FLOAT,
+      false,
+      0,
+      0
+    );
+
+    // Setting projection matrix in the vertex shader
+    this.gl.uniformMatrix3fv(
+      this.matrixUniformLocation,
+      false,
+      Utils.projectionMatrix(this.gl.canvas.width, this.gl.canvas.height)
+    );
+
     this.obstacleVertices = Utils.getCenteredRect(100, 100, this.gl);
     this.canvasCorners = Utils.getCanvasCorners(this.gl);
+
+    // First 4 vertices are obstacle vertices, Next 4 are canvas corners and rest are random vertices
+    this.vertices = Utils.poissonDiskSampling(
+      this.canvas.width,
+      this.canvas.height,
+      120,
+      30,
+      [...this.obstacleVertices, ...this.canvasCorners]
+    );
+
+    // Position of people
+    this.peopleVertices = Utils.poissonDiskSampling(
+      this.canvas.width,
+      this.canvas.height,
+      50,
+      100
+    );
+
+    this.drawScene();
+  }
+
+  transformObstacle() {
+    this.transformedObstacleVertices = [];
+
+    let transformationMatrix = Utils.multiplyManyMM(
+      Utils.translationMatrix(this.canvas.width / 2, this.canvas.height / 2),
+      Utils.translationMatrix(this.translate[0], this.translate[1]),
+      Utils.rotationMatrix(this.rotate),
+      Utils.scalingMatrix(this.scale, this.scale),
+      Utils.translationMatrix(-this.canvas.width / 2, -this.canvas.height / 2)
+    );
+
+    for (let i = 0; i < this.obstacleVertices.length; i++) {
+      const transformedVertex = Utils.multiplyMV(transformationMatrix, [
+        ...this.obstacleVertices[i],
+        1,
+      ]);
+
+      this.transformedObstacleVertices.push(transformedVertex.slice(0, 2));
+    }
   }
 
   drawTriangles() {
@@ -138,18 +180,16 @@ class WebGLAPP {
     );
 
     for (let i = 0; i < this.triangulatedVertices.length; i += 6) {
-      const populationDensity = Utils.countPointsInsideTriangle(
+      const populationDensity = Utils.countPointsInTriangle(
         this.peopleVertices,
         this.triangulatedVertices.slice(i, i + 6)
       );
 
       const color = [0, 0, 0, 0.4];
 
-      const densityThreshold = 4;
-
-      if (populationDensity > densityThreshold) {
+      if (populationDensity > this.thresholdDensity) {
         color[0] = 1;
-      } else if (populationDensity == densityThreshold) {
+      } else if (populationDensity == this.thresholdDensity) {
         color[1] = 1;
       } else {
         color[2] = 1;
@@ -161,6 +201,19 @@ class WebGLAPP {
       this.gl.uniform4f(this.colorUniformLocation, 0, 0, 0, 1);
       this.gl.drawArrays(this.gl.LINE_LOOP, i / 2, 3);
     }
+  }
+
+  drawPeople() {
+    const peopleVertices = this.peopleVertices.flat();
+
+    this.gl.bufferData(
+      this.gl.ARRAY_BUFFER,
+      new Float32Array(peopleVertices),
+      this.gl.DYNAMIC_DRAW
+    );
+
+    this.gl.uniform4f(this.colorUniformLocation, 0, 0, 0, 0.6);
+    this.gl.drawArrays(this.gl.POINTS, 0, peopleVertices.length / 2);
   }
 
   drawObstacle() {
@@ -184,106 +237,58 @@ class WebGLAPP {
     this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
   }
 
-  drawPeople() {
-    const peopleVertices = this.peopleVertices.flat();
-
-    this.gl.bufferData(
-      this.gl.ARRAY_BUFFER,
-      new Float32Array(peopleVertices),
-      this.gl.DYNAMIC_DRAW
-    );
-
-    this.gl.uniform4f(this.colorUniformLocation, 0, 0, 0, 0.6);
-    this.gl.drawArrays(this.gl.POINTS, 0, peopleVertices.length / 2);
-  }
-
-  render() {
-    // Boilerplate to setup canvas
-    this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
-    this.gl.clearColor(0, 0, 0, 0);
+  drawScene() {
     this.gl.clear(this.gl.COLOR_BUFFER_BIT);
 
-    this.gl.useProgram(this.program);
-
-    this.gl.enableVertexAttribArray(this.positionAttributeLocation);
-    this.gl.vertexAttribPointer(
-      this.positionAttributeLocation,
-      2,
-      this.gl.FLOAT,
-      false,
-      0,
-      0
-    );
-
-    this.gl.uniformMatrix3fv(
-      this.matrixUniformLocation,
-      false,
-      Utils.projectionMatrix(this.gl.canvas.width, this.gl.canvas.height)
-    );
-
-    // First 4 vertices are obstacle vertices, Next 4 are canvas corners and rest are random vertices
-    this.vertices = Utils.poissonDiskSampling(
-      this.canvas.width,
-      this.canvas.height,
-      120,
-      30,
-      [...this.obstacleVertices, ...this.canvasCorners]
-    );
-
-    // Position of people
-    this.peopleVertices = Utils.poissonDiskSampling(
-      this.canvas.width,
-      this.canvas.height,
-      50,
-      100
-    );
-
-    this.drawScene();
-  }
-
-  drawScene() {
     this.transformObstacle();
     this.drawTriangles();
     this.drawPeople();
     this.drawObstacle();
   }
 
-  sliderSetup() {
+  sliderEventListener() {
     const rangeMapping = {
       translateX: [-200, 200],
       translateY: [-200, 200],
       scale: [0, 3],
       rotate: [0, 360],
-    };
-
-    const defaultMapping = {
-      translateX: 0,
-      translateY: 0,
-      scale: 1,
-      rotate: 0,
-    };
-
-    const functionMapping = {
-      translateX: (value) => {
-        this.translate[0] = value;
-      },
-      translateY: (value) => {
-        this.translate[1] = value;
-      },
-      scale: (value) => {
-        this.scale = value;
-      },
-      rotate: (value) => {
-        this.rotate = value * (Math.PI / 180);
-      },
+      crowdDensity: [1, 6],
     };
 
     const stepMapping = {
-      translateX: 5,
-      translateY: 5,
+      translateX: 1,
+      translateY: 1,
       scale: 0.1,
       rotate: 0,
+      crowdDensity: 1,
     };
+
+    const defaultMapping = {
+      translateX: this.translate[0],
+      translateY: this.translate[1],
+      scale: this.scale,
+      rotate: this.rotate * (180 / Math.PI),
+      crowdDensity: this.thresholdDensity,
+    };
+
+    const functionMapping = {
+      translateX: (v) => (this.translate[0] = v),
+      translateY: (v) => (this.translate[1] = v),
+      scale: (v) => (this.scale = v),
+      rotate: (v) => (this.rotate = v * (Math.PI / 180)),
+      crowdDensity: (v) => (this.thresholdDensity = v),
+    };
+
+    const unitMapping = {
+      translateX: "px",
+      translateY: "px",
+      scale: "x",
+      rotate: "°",
+      crowdDensity: "",
+    };
+
+    // Store slider input and valueDisplay elements for later syncing
+    this.sliderElements = {};
 
     document.querySelectorAll(".slider").forEach((slider) => {
       const input = slider.querySelector("input");
@@ -291,27 +296,139 @@ class WebGLAPP {
 
       input.min = rangeMapping[slider.id][0];
       input.max = rangeMapping[slider.id][1];
-      input.value = defaultMapping[slider.id];
       input.step = stepMapping[slider.id];
+      input.value = defaultMapping[slider.id];
 
-      valueDisplay.textContent = input.value;
+      valueDisplay.textContent =
+        defaultMapping[slider.id] + unitMapping[slider.id];
+
+      // Store for later syncing
+      this.sliderElements[slider.id] = {
+        input,
+        valueDisplay,
+        unit: unitMapping[slider.id],
+      };
 
       input.addEventListener("input", () => {
-        valueDisplay.textContent = input.value;
+        valueDisplay.textContent = input.value + unitMapping[slider.id];
         functionMapping[slider.id](parseFloat(input.value));
         this.drawScene();
       });
     });
   }
 
+  // Helper to sync sliders with internal state
+  syncSlidersFromState() {
+    if (!this.sliderElements) return;
+    if (this.sliderElements.translateX) {
+      this.sliderElements.translateX.input.value = this.translate[0];
+      this.sliderElements.translateX.valueDisplay.textContent =
+        this.translate[0] + this.sliderElements.translateX.unit;
+    }
+    if (this.sliderElements.translateY) {
+      this.sliderElements.translateY.input.value = this.translate[1];
+      this.sliderElements.translateY.valueDisplay.textContent =
+        this.translate[1] + this.sliderElements.translateY.unit;
+    }
+    if (this.sliderElements.scale) {
+      this.sliderElements.scale.input.value = this.scale;
+      this.sliderElements.scale.valueDisplay.textContent =
+        this.scale + this.sliderElements.scale.unit;
+    }
+    if (this.sliderElements.rotate) {
+      // Convert radians to degrees for slider
+      const deg = Math.round(this.rotate * (180 / Math.PI));
+      this.sliderElements.rotate.input.value = deg;
+      this.sliderElements.rotate.valueDisplay.textContent =
+        deg + this.sliderElements.rotate.unit;
+    }
+    if (this.sliderElements.crowdDensity) {
+      this.sliderElements.crowdDensity.input.value = this.thresholdDensity;
+      this.sliderElements.crowdDensity.valueDisplay.textContent =
+        this.thresholdDensity + this.sliderElements.crowdDensity.unit;
+    }
+  }
+
+  canvasEventListener() {
+    this.canvas.addEventListener("mousedown", (e) => {
+      const rect = this.canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      if (
+        Utils.isPointInQuadrilateral(this.transformedObstacleVertices, [x, y])
+      ) {
+        this.selectedObstacle = true;
+        this.selectedCoord = [x, y];
+        this.canvas.style.cursor = "move";
+        return;
+      }
+
+      for (let i = 0; i < this.peopleVertices.length; i++) {
+        const dx = this.peopleVertices[i][0] - x;
+        const dy = this.peopleVertices[i][1] - y;
+
+        if (dx * dx + dy * dy < 8 * 8) {
+          this.selectedPersonIndex = i;
+          this.canvas.style.cursor = "pointer";
+          return;
+        }
+      }
+    });
+
+    this.canvas.addEventListener("mousemove", (e) => {
+      const rect = this.canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      let updated = false;
+      if (this.selectedPersonIndex !== null) {
+        this.peopleVertices[this.selectedPersonIndex] = [x, y];
+        updated = true;
+      }
+
+      if (this.selectedObstacle) {
+        this.translate = [x - this.selectedCoord[0], y - this.selectedCoord[1]];
+        updated = true;
+      }
+
+      if (updated) {
+        this.syncSlidersFromState();
+        this.drawScene();
+      }
+    });
+
+    this.canvas.addEventListener("mouseup", (e) => {
+      this.selectedPersonIndex = null;
+      this.selectedObstacle = null;
+      this.canvas.style.cursor = "default";
+    });
+
+    this.canvas.addEventListener(
+      "wheel",
+      (e) => {
+        if (e.deltaY < 0) {
+          this.scale = Math.min(this.scale + 0.1, 3);
+        } else {
+          this.scale = Math.max(this.scale - 0.1, 0.1);
+        }
+        this.scale = Math.round(this.scale * 10) / 10;
+        this.syncSlidersFromState();
+        this.drawScene();
+      },
+      { passive: false }
+    );
+  }
+
   constructor() {
     this.translate = [0, 0];
     this.scale = 1;
     this.rotate = 0;
+    this.thresholdDensity = 4;
 
-    this.initialize();
-    this.render();
-    this.sliderSetup();
+    this.initializeAndRender();
+    this.sliderEventListener();
+    this.canvasEventListener();
   }
 }
 

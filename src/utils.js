@@ -209,12 +209,15 @@ export default class Utils {
       }
     }
 
-    vertices.map(([x, y]) => [Math.round(x), Math.round(y)]);
+    const finalVertices = vertices.map(([x, y]) => [
+      Math.round(x),
+      Math.round(y),
+    ]);
 
-    return vertices;
+    return finalVertices;
   }
 
-  static countPointsInsideTriangle(points, triangle) {
+  static countPointsInTriangle(points, triangle) {
     function sign(x1, y1, x2, y2, x3, y3) {
       return (x1 - x3) * (y2 - y3) - (x2 - x3) * (y1 - y3);
     }
@@ -248,5 +251,24 @@ export default class Utils {
       }
     }
     return count;
+  }
+
+  static isPointInQuadrilateral(quad, point) {
+    // Ray-casting algorithm for point-in-polygon
+    let inside = false;
+    for (let i = 0, j = quad.length - 1; i < quad.length; j = i++) {
+      const xi = quad[i][0],
+        yi = quad[i][1];
+      const xj = quad[j][0],
+        yj = quad[j][1];
+      const px = point[0],
+        py = point[1];
+
+      const intersect =
+        yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi;
+      if (intersect) inside = !inside;
+    }
+
+    return inside;
   }
 }
