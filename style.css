@@ -6,7 +6,7 @@
 }
 
 body {
-  padding: 10px 40px;
+  padding: 30px 40px;
   background-color: bisque;
 }
 canvas {
@@ -18,7 +18,7 @@ header {
 }
 
 header h1 {
-  font-size: 32px;
+  font-size: 40px;
 }
 
 main {
@@ -33,18 +33,18 @@ main {
   gap: 30px;
 }
 
-.control-container {
+.container {
   padding: 10px 20px;
   border: 1px solid black;
   border-radius: 10px;
 }
 
-.control-container h3 {
+.container h3 {
   text-align: center;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
-.action-container {
+.sub-container {
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -57,7 +57,7 @@ main {
 }
 
 .slider label {
-  min-width: 100px;
+  min-width: 110px;
 }
 
 .slider input {
@@ -66,4 +66,38 @@ main {
 
 .slider span {
   min-width: 50px;
+}
+
+.color-stats {
+  display: flex;
+  flex-direction: row;
+  gap: 50px;
+}
+
+.stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stats span {
+  min-width: 25px;
+}
+
+.color {
+  width: 15px;
+  height: 15px;
+  border: 1px solid black;
+}
+
+#redCount .color {
+  background-color: rgba(255, 0, 0, 0.5);
+}
+
+#greenCount .color {
+  background-color: rgba(0, 255, 0, 0.5);
+}
+
+#blueCount .color {
+  background-color: rgba(0, 0, 255, 0.4);
 }

@@ -16,9 +16,9 @@
       <canvas height="450" width="800"></canvas>
 
       <div id="controls">
-        <div class="control-container">
+        <div class="container">
           <h3>Obstacle control</h3>
-          <div class="action-container">
+          <div class="sub-container">
             <div class="slider" id="translateX">
               <label for="translateX">Translate X:</label>
               <input type="range" />
@@ -42,13 +42,39 @@
           </div>
         </div>
 
-        <div class="control-container">
+        <div class="container">
           <h3>Crowd control</h3>
-          <div class="action-container">
+          <div class="sub-container">
             <div class="slider" id="crowdDensity">
               <label for="crowdDensity">Crowd Density:</label>
               <input type="range" />
               <span class="value"></span>
+            </div>
+            <div class="slider" id="population">
+              <label for="population">Population:</label>
+              <input type="range" />
+              <span class="value"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="container">
+          <h3>Stats</h3>
+          <div class="sub-container">
+            <div class="color-stats">
+              <span>Triangle count: </span>
+              <div class="stats" id="redCount">
+                <div class="color"></div>
+                <span>0</span>
+              </div>
+              <div class="stats" id="greenCount">
+                <div class="color"></div>
+                <span>0</span>
+              </div>
+              <div class="stats" id="blueCount">
+                <div class="color"></div>
+                <span>0</span>
+              </div>
             </div>
           </div>
         </div>

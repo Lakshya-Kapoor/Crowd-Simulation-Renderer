@@ -82,7 +82,6 @@ class WebGLAPP {
       "u_color"
     );
 
-    // Boilerplate to setup canvas
     this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
     this.gl.clearColor(0, 0, 0, 0);
 
@@ -113,7 +112,7 @@ class WebGLAPP {
       this.canvas.width,
       this.canvas.height,
       120,
-      30,
+      25,
       [...this.obstacleVertices, ...this.canvasCorners]
     );
 
@@ -179,21 +178,28 @@ class WebGLAPP {
       this.gl.STATIC_DRAW
     );
 
+    this.redCount = 0;
+    this.greenCount = 0;
+    this.blueCount = 0;
+
     for (let i = 0; i < this.triangulatedVertices.length; i += 6) {
       const populationDensity = Utils.countPointsInTriangle(
         this.peopleVertices,
         this.triangulatedVertices.slice(i, i + 6)
       );
 
-      const color = [0, 0, 0, 0.4];
-
-      if (populationDensity > this.thresholdDensity) {
-        color[0] = 1;
-      } else if (populationDensity == this.thresholdDensity) {
-        color[1] = 1;
+      if (this.thresholdDensity > populationDensity) {
+        this.blueCount++;
+      } else if (this.thresholdDensity < populationDensity) {
+        this.redCount++;
       } else {
-        color[2] = 1;
+        this.greenCount++;
       }
+
+      const color = Utils.colorBasedOnDensity(
+        populationDensity,
+        this.thresholdDensity
+      );
 
       this.gl.uniform4f(this.colorUniformLocation, ...color);
       this.gl.drawArrays(this.gl.TRIANGLES, i / 2, 3);
@@ -244,6 +250,18 @@ class WebGLAPP {
     this.drawTriangles();
     this.drawPeople();
     this.drawObstacle();
+
+    this.setCount();
+  }
+
+  setCount() {
+    const redCountElement = document.querySelector("#redCount span");
+    const greenCountElement = document.querySelector("#greenCount span");
+    const blueCountElement = document.querySelector("#blueCount span");
+
+    redCountElement.textContent = this.redCount;
+    greenCountElement.textContent = this.greenCount;
+    blueCountElement.textContent = this.blueCount;
   }
 
   sliderEventListener() {
@@ -253,6 +271,7 @@ class WebGLAPP {
       scale: [0, 3],
       rotate: [0, 360],
       crowdDensity: [1, 6],
+      population: [80, 120],
     };
 
     const stepMapping = {
@@ -261,6 +280,7 @@ class WebGLAPP {
       scale: 0.1,
       rotate: 0,
       crowdDensity: 1,
+      population: 20,
     };
 
     const defaultMapping = {
@@ -269,6 +289,7 @@ class WebGLAPP {
       scale: this.scale,
       rotate: this.rotate * (180 / Math.PI),
       crowdDensity: this.thresholdDensity,
+      population: this.population,
     };
 
     const functionMapping = {
@@ -277,6 +298,13 @@ class WebGLAPP {
       scale: (v) => (this.scale = v),
       rotate: (v) => (this.rotate = v * (Math.PI / 180)),
       crowdDensity: (v) => (this.thresholdDensity = v),
+      population: (v) =>
+        (this.peopleVertices = Utils.poissonDiskSampling(
+          this.canvas.width,
+          this.canvas.height,
+          50,
+          v
+        )),
     };
 
     const unitMapping = {
@@ -285,6 +313,7 @@ class WebGLAPP {
       scale: "x",
       rotate: "°",
       crowdDensity: "",
+      population: "",
     };
 
     // Store slider input and valueDisplay elements for later syncing
@@ -427,6 +456,7 @@ class WebGLAPP {
     this.scale = 1;
     this.rotate = 0;
     this.thresholdDensity = 4;
+    this.population = 100;
 
     this.initializeAndRender();
     this.sliderEventListener();

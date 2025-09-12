@@ -271,4 +271,19 @@ export default class Utils {
 
     return inside;
   }
+
+  static colorBasedOnDensity(density, threshold) {
+    const color = [0, 0, 0, 0];
+    if (density > threshold) {
+      color[0] = 0.5;
+      color[3] = 0.4 + Math.min(density - threshold, 3) * 0.05;
+    } else if (density == threshold) {
+      color[1] = 0.4;
+      color[3] = 0.4;
+    } else {
+      color[2] = 0.5;
+      color[3] = 0.4 - Math.min(threshold - density, 3) * 0.05;
+    }
+    return color;
+  }
 }
