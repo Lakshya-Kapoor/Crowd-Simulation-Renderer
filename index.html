@@ -1,12 +1,55 @@
 <!DOCTYPE html>
 <html>
   <style>
+    body {
+      background-color: bisque;
+    }
     canvas {
       border: 1px solid #ccc;
     }
+
+    main {
+      display: flex;
+      gap: 40px;
+    }
+
+    .slider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .slider input {
+      width: 300px;
+    }
   </style>
   <body>
-    <canvas height="450" width="800"></canvas>
+    <main>
+      <canvas height="450" width="800"></canvas>
+      <div id="slider-container">
+        <div class="slider" id="translateX">
+          <label for="translateX">Translate X:</label>
+          <input type="range" />
+          <span class="value"></span>
+        </div>
+        <div class="slider" id="translateY">
+          <label for="translateY">Translate Y:</label>
+          <input type="range" />
+          <span class="value"></span>
+        </div>
+        <div class="slider" id="scale">
+          <label for="scale">Scale:</label>
+          <input type="range" />
+          <span class="value"></span>
+        </div>
+        <div class="slider" id="rotate">
+          <label for="rotate">Rotate:</label>
+          <input type="range" />
+          <span class="value"></span>
+        </div>
+      </div>
+    </main>
+
     <script src="src/utils.js" type="module"></script>
     <script src="src/main.js" type="module"></script>
   </body>

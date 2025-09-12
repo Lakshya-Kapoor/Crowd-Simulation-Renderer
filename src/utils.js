@@ -213,4 +213,40 @@ export default class Utils {
 
     return vertices;
   }
+
+  static countPointsInsideTriangle(points, triangle) {
+    function sign(x1, y1, x2, y2, x3, y3) {
+      return (x1 - x3) * (y2 - y3) - (x2 - x3) * (y1 - y3);
+    }
+
+    function pointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
+      const d1 = sign(px, py, ax, ay, bx, by);
+      const d2 = sign(px, py, bx, by, cx, cy);
+      const d3 = sign(px, py, cx, cy, ax, ay);
+
+      const hasNeg = d1 < 0 || d2 < 0 || d3 < 0;
+      const hasPos = d1 > 0 || d2 > 0 || d3 > 0;
+
+      return !(hasNeg && hasPos);
+    }
+
+    let count = 0;
+    for (const [px, py] of points) {
+      if (
+        pointInTriangle(
+          px,
+          py,
+          triangle[0],
+          triangle[1],
+          triangle[2],
+          triangle[3],
+          triangle[4],
+          triangle[5]
+        )
+      ) {
+        count++;
+      }
+    }
+    return count;
+  }
 }

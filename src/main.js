@@ -9,7 +9,7 @@ class WebGLAPP {
 
     void main() {
       gl_Position = vec4((u_matrix * vec3(a_position, 1)).xy, 0, 1);
-      gl_PointSize = 5.0;
+      gl_PointSize = 6.0;
     }
   `;
 
@@ -51,48 +51,25 @@ class WebGLAPP {
     this.gl.deleteProgram(program);
   }
 
-  setTriangles(vertices) {
-    this.triangulatedVertices = [];
+  transformObstacle() {
+    this.transformedObstacleVertices = [];
 
-    // Apply R, T, S to the first four vertices (obstacle)
-    for (let i = 0; i < 4; i++) {
-      let transformationMatrix = Utils.multiplyManyMM(
-        Utils.translationMatrix(this.translate[0], this.translate[1]),
-        Utils.translationMatrix(this.canvas.width / 2, this.canvas.height / 2),
-        Utils.rotationMatrix(this.rotate),
-        Utils.scalingMatrix(this.scale, this.scale),
-        Utils.translationMatrix(-this.canvas.width / 2, -this.canvas.height / 2)
-      );
+    let transformationMatrix = Utils.multiplyManyMM(
+      Utils.translationMatrix(this.translate[0], this.translate[1]),
+      Utils.translationMatrix(this.canvas.width / 2, this.canvas.height / 2),
+      Utils.rotationMatrix(this.rotate),
+      Utils.scalingMatrix(this.scale, this.scale),
+      Utils.translationMatrix(-this.canvas.width / 2, -this.canvas.height / 2)
+    );
 
-      const res = Utils.multiplyMV(transformationMatrix, [
-        vertices[i][0],
-        vertices[i][1],
+    for (let i = 0; i < this.obstacleVertices.length; i++) {
+      const transformedVertex = Utils.multiplyMV(transformationMatrix, [
+        ...this.obstacleVertices[i],
         1,
       ]);
 
-      vertices[i] = res.slice(0, 2);
+      this.transformedObstacleVertices.push(transformedVertex.slice(0, 2));
     }
-
-    const edges = [
-      [0, 1],
-      [1, 2],
-      [2, 3],
-      [3, 0],
-      [0, 2],
-    ];
-
-    const triangles = cdt2d(vertices, edges);
-    triangles.forEach((arr) => {
-      arr.forEach((idx) => {
-        this.triangulatedVertices.push(vertices[idx][0], vertices[idx][1]);
-      });
-    });
-
-    this.gl.bufferData(
-      this.gl.ARRAY_BUFFER,
-      new Float32Array(this.triangulatedVertices),
-      this.gl.STATIC_DRAW
-    );
   }
 
   initialize() {
@@ -131,15 +108,55 @@ class WebGLAPP {
   }
 
   drawTriangles() {
+    this.triangulatedVertices = [];
+
+    const vertices = this.vertices;
+
+    for (let i = 0; i < this.transformedObstacleVertices.length; i++) {
+      vertices[i] = this.transformedObstacleVertices[i];
+    }
+
+    const edges = [
+      [0, 1],
+      [1, 2],
+      [2, 3],
+      [3, 0],
+      [0, 2],
+    ];
+
+    const triangles = cdt2d(vertices, edges);
+    triangles.forEach((arr) => {
+      arr.forEach((idx) => {
+        this.triangulatedVertices.push(...vertices[idx]);
+      });
+    });
+
+    this.gl.bufferData(
+      this.gl.ARRAY_BUFFER,
+      new Float32Array(this.triangulatedVertices),
+      this.gl.STATIC_DRAW
+    );
+
     for (let i = 0; i < this.triangulatedVertices.length; i += 6) {
-      // this.gl.uniform4f(
-      //   this.colorUniformLocation,
-      //   Math.random(),
-      //   Math.random(),
-      //   Math.random(),
-      //   1
-      // );
-      // this.gl.drawArrays(this.gl.TRIANGLES, i / 2, 3);
+      const populationDensity = Utils.countPointsInsideTriangle(
+        this.peopleVertices,
+        this.triangulatedVertices.slice(i, i + 6)
+      );
+
+      const color = [0, 0, 0, 0.4];
+
+      const densityThreshold = 4;
+
+      if (populationDensity > densityThreshold) {
+        color[0] = 1;
+      } else if (populationDensity == densityThreshold) {
+        color[1] = 1;
+      } else {
+        color[2] = 1;
+      }
+
+      this.gl.uniform4f(this.colorUniformLocation, ...color);
+      this.gl.drawArrays(this.gl.TRIANGLES, i / 2, 3);
 
       this.gl.uniform4f(this.colorUniformLocation, 0, 0, 0, 1);
       this.gl.drawArrays(this.gl.LINE_LOOP, i / 2, 3);
@@ -150,17 +167,11 @@ class WebGLAPP {
     const obstacleVertices = [];
 
     for (let i = 0; i <= 2; i++) {
-      obstacleVertices.push(
-        this.obstacleVertices[i][0],
-        this.obstacleVertices[i][1]
-      );
+      obstacleVertices.push(...this.transformedObstacleVertices[i]);
     }
 
     for (let i = 2; i <= 4; i++) {
-      obstacleVertices.push(
-        this.obstacleVertices[i % 4][0],
-        this.obstacleVertices[i % 4][1]
-      );
+      obstacleVertices.push(...this.transformedObstacleVertices[i % 4]);
     }
 
     this.gl.bufferData(
@@ -171,6 +182,19 @@ class WebGLAPP {
 
     this.gl.uniform4f(this.colorUniformLocation, 0, 0, 0, 1);
     this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
+  }
+
+  drawPeople() {
+    const peopleVertices = this.peopleVertices.flat();
+
+    this.gl.bufferData(
+      this.gl.ARRAY_BUFFER,
+      new Float32Array(peopleVertices),
+      this.gl.DYNAMIC_DRAW
+    );
+
+    this.gl.uniform4f(this.colorUniformLocation, 0, 0, 0, 0.6);
+    this.gl.drawArrays(this.gl.POINTS, 0, peopleVertices.length / 2);
   }
 
   render() {
@@ -197,18 +221,87 @@ class WebGLAPP {
       Utils.projectionMatrix(this.gl.canvas.width, this.gl.canvas.height)
     );
 
-    const initialVertices = [...this.obstacleVertices, ...this.canvasCorners];
-    const vertices = Utils.poissonDiskSampling(
+    // First 4 vertices are obstacle vertices, Next 4 are canvas corners and rest are random vertices
+    this.vertices = Utils.poissonDiskSampling(
       this.canvas.width,
       this.canvas.height,
       120,
-      20,
-      initialVertices
+      30,
+      [...this.obstacleVertices, ...this.canvasCorners]
     );
 
-    this.setTriangles(vertices);
+    // Position of people
+    this.peopleVertices = Utils.poissonDiskSampling(
+      this.canvas.width,
+      this.canvas.height,
+      50,
+      100
+    );
+
+    this.drawScene();
+  }
+
+  drawScene() {
+    this.transformObstacle();
     this.drawTriangles();
-    // this.drawObstacle();
+    this.drawPeople();
+    this.drawObstacle();
+  }
+
+  sliderSetup() {
+    const rangeMapping = {
+      translateX: [-200, 200],
+      translateY: [-200, 200],
+      scale: [0, 3],
+      rotate: [0, 360],
+    };
+
+    const defaultMapping = {
+      translateX: 0,
+      translateY: 0,
+      scale: 1,
+      rotate: 0,
+    };
+
+    const functionMapping = {
+      translateX: (value) => {
+        this.translate[0] = value;
+      },
+      translateY: (value) => {
+        this.translate[1] = value;
+      },
+      scale: (value) => {
+        this.scale = value;
+      },
+      rotate: (value) => {
+        this.rotate = value * (Math.PI / 180);
+      },
+    };
+
+    const stepMapping = {
+      translateX: 5,
+      translateY: 5,
+      scale: 0.1,
+      rotate: 0,
+    };
+
+    document.querySelectorAll(".slider").forEach((slider) => {
+      const input = slider.querySelector("input");
+      const valueDisplay = slider.querySelector(".value");
+
+      input.min = rangeMapping[slider.id][0];
+      input.max = rangeMapping[slider.id][1];
+      input.value = defaultMapping[slider.id];
+      input.step = stepMapping[slider.id];
+
+      valueDisplay.textContent = input.value;
+
+      input.addEventListener("input", () => {
+        valueDisplay.textContent = input.value;
+        functionMapping[slider.id](parseFloat(input.value));
+        this.drawScene();
+      });
+    });
   }
 
   constructor() {
@@ -218,7 +311,8 @@ class WebGLAPP {
 
     this.initialize();
     this.render();
+    this.sliderSetup();
   }
 }
 
-new WebGLAPP();
+const app = new WebGLAPP();
