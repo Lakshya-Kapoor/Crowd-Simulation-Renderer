@@ -1,4 +1,4 @@
-class Utils {
+export default class Utils {
   // prettier-ignore
   static projectionMatrix(w, h) {
     return [
@@ -71,6 +71,14 @@ class Utils {
     ];
   }
 
+  static multiplyManyMM(...matrices) {
+    let result = matrices[0];
+    for (let i = 1; i < matrices.length; i++) {
+      result = Utils.multiplyMM(result, matrices[i]);
+    }
+    return result;
+  }
+
   // prettier-ignore
   static multiplyMV(m, v) {
     const v0 = v[0];
@@ -83,13 +91,45 @@ class Utils {
     ];
   }
 
-  static poissonDiskSampling(width, height, radius, numPoints, k = 30) {
+  // returns coordinates of centered rectangle
+  static getCenteredRect(rectWidth, rectHeight, gl) {
+    const canvasWidth = gl.canvas.width;
+    const canvasHeight = gl.canvas.height;
+    const x = (canvasWidth - rectWidth) / 2;
+    const y = (canvasHeight - rectHeight) / 2;
+    return [
+      [x, y],
+      [x + rectWidth, y],
+      [x + rectWidth, y + rectHeight],
+      [x, y + rectHeight],
+    ];
+  }
+
+  static getCanvasCorners(gl) {
+    const canvasWidth = gl.canvas.width;
+    const canvasHeight = gl.canvas.height;
+    return [
+      [0, 0],
+      [canvasWidth, 0],
+      [canvasWidth, canvasHeight],
+      [0, canvasHeight],
+    ];
+  }
+
+  static poissonDiskSampling(
+    width,
+    height,
+    radius,
+    numVertices,
+    initialVertices = [],
+    k = 30
+  ) {
     const cellSize = radius / Math.sqrt(2);
     const gridWidth = Math.ceil(width / cellSize);
     const gridHeight = Math.ceil(height / cellSize);
 
     const grid = new Array(gridWidth * gridHeight).fill(null);
-    const points = [];
+    const vertices = [];
     const active = [];
 
     function gridIndex(x, y) {
@@ -107,7 +147,7 @@ class Utils {
           if (nx >= 0 && ny >= 0 && nx < gridWidth && ny < gridHeight) {
             const neighborIndex = grid[gridIndex(nx, ny)];
             if (neighborIndex !== null) {
-              const [qx, qy] = points[neighborIndex];
+              const [qx, qy] = vertices[neighborIndex];
               const dx = px - qx;
               const dy = py - qy;
               if (dx * dx + dy * dy < radius * radius) {
@@ -120,26 +160,24 @@ class Utils {
       return true;
     }
 
-    // Adding the four corners
-    const corners = [
-      [0, 0],
-      [width, 0],
-      [0, height],
-      [width, height],
-    ];
+    if (initialVertices.length === 0) {
+      const x = Math.random() * width;
+      const y = Math.random() * height;
+      initialVertices.push([x, y]);
+    }
 
-    corners.forEach(([x, y]) => {
-      const idx = points.length;
-      points.push([x, y]);
+    initialVertices.forEach(([x, y]) => {
+      const idx = vertices.length;
+      vertices.push([x, y]);
       active.push(idx);
       grid[gridIndex(Math.floor(x / cellSize), Math.floor(y / cellSize))] = idx;
     });
 
-    // Generating the rest of the points using Bridson's algorithm
-    while (active.length > 0 && points.length < numPoints) {
+    // Generating the rest of the vertices using Bridson's algorithm
+    while (active.length > 0 && vertices.length < numVertices) {
       const randIndex = Math.floor(Math.random() * active.length);
       const pointIndex = active[randIndex];
-      const [px, py] = points[pointIndex];
+      const [px, py] = vertices[pointIndex];
 
       let found = false;
       for (let i = 0; i < k; i++) {
@@ -155,8 +193,8 @@ class Utils {
           ny <= height &&
           isFarEnough(nx, ny)
         ) {
-          const newIndex = points.length;
-          points.push([nx, ny]);
+          const newIndex = vertices.length;
+          vertices.push([nx, ny]);
           active.push(newIndex);
           grid[
             gridIndex(Math.floor(nx / cellSize), Math.floor(ny / cellSize))
@@ -171,8 +209,8 @@ class Utils {
       }
     }
 
-    points.map(([x, y]) => [Math.round(x), Math.round(y)]);
+    vertices.map(([x, y]) => [Math.round(x), Math.round(y)]);
 
-    return points;
+    return vertices;
   }
 }
