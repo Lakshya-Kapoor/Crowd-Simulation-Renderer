@@ -248,8 +248,8 @@ class WebGLAPP {
 
   sliderEventListener() {
     const rangeMapping = {
-      translateX: [-200, 200],
-      translateY: [-200, 200],
+      translateX: [-this.canvas.width / 2, this.canvas.width / 2],
+      translateY: [-this.canvas.height / 2, this.canvas.height / 2],
       scale: [0, 3],
       rotate: [0, 360],
       crowdDensity: [1, 6],
@@ -359,7 +359,7 @@ class WebGLAPP {
         Utils.isPointInQuadrilateral(this.transformedObstacleVertices, [x, y])
       ) {
         this.selectedObstacle = true;
-        this.selectedCoord = [x, y];
+        this.lastCoord = [x, y];
         this.canvas.style.cursor = "move";
         return;
       }
@@ -388,7 +388,9 @@ class WebGLAPP {
       }
 
       if (this.selectedObstacle) {
-        this.translate = [x - this.selectedCoord[0], y - this.selectedCoord[1]];
+        this.translate[0] += x - this.lastCoord[0];
+        this.translate[1] += y - this.lastCoord[1];
+        this.lastCoord = [x, y];
         updated = true;
       }
 
