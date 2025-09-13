@@ -102,3 +102,20 @@ main {
 #blueCount .color {
   background-color: rgba(0, 0, 255, 0.4);
 }
+
+@-moz-document url-prefix() {
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    border-radius: 4px;
+    background: #aaa8a8;
+    outline: none;
+  }
+
+  input[type="range"]::-moz-range-progress {
+    background: #de3f4c;
+    height: 5px;
+    border-radius: 5px;
+  }
+}
