@@ -1,15 +1,15 @@
-export default class Utils {
+export class Matrix {
   // prettier-ignore
-  static projectionMatrix(w, h) {
+  static projection(w, h) {
     return [
-      2/w, 0, 0,
-      0, -2/h, 0,
-      -1, 1, 1
+      2/w, 0, -1,
+      0, -2/h, 1,
+      0, 0, 1
     ];
   }
 
   // prettier-ignore
-  static translationMatrix(tx, ty) {
+  static translation(tx, ty) {
     return [
       1, 0, tx,
       0, 1, ty,
@@ -18,7 +18,7 @@ export default class Utils {
   }
 
   // prettier-ignore
-  static rotationMatrix(angleInRadians) {
+  static rotation(angleInRadians) {
     const c = Math.cos(angleInRadians);
     const s = Math.sin(angleInRadians);
     return [
@@ -29,11 +29,20 @@ export default class Utils {
   }
 
   // prettier-ignore
-  static scalingMatrix(sx, sy) {
+  static scaling(sx, sy) {
     return [
       sx, 0, 0,
       0, sy, 0,
       0, 0, 1
+    ];
+  }
+
+  // prettier-ignore
+  static transpose(m) {
+    return [
+      m[0], m[3], m[6],
+      m[1], m[4], m[7],
+      m[2], m[5], m[8],
     ];
   }
 
@@ -74,7 +83,7 @@ export default class Utils {
   static multiplyManyMM(...matrices) {
     let result = matrices[0];
     for (let i = 1; i < matrices.length; i++) {
-      result = Utils.multiplyMM(result, matrices[i]);
+      result = Matrix.multiplyMM(result, matrices[i]);
     }
     return result;
   }
@@ -90,11 +99,13 @@ export default class Utils {
       m[2 * 3 + 0] * v0 + m[2 * 3 + 1] * v1 + m[2 * 3 + 2] * v2,
     ];
   }
+}
 
-  // returns coordinates of centered rectangle
-  static getCenteredRect(rectWidth, rectHeight, gl) {
-    const canvasWidth = gl.canvas.width;
-    const canvasHeight = gl.canvas.height;
+export default class Utils {
+  // returns coordinates of centered rectangle in clockwise order starting from top-left
+  static getCenteredRect(rectWidth, rectHeight, canvas) {
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
     const x = (canvasWidth - rectWidth) / 2;
     const y = (canvasHeight - rectHeight) / 2;
     return [
@@ -105,9 +116,9 @@ export default class Utils {
     ];
   }
 
-  static getCanvasCorners(gl) {
-    const canvasWidth = gl.canvas.width;
-    const canvasHeight = gl.canvas.height;
+  static getCanvasCorners(canvas) {
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
     return [
       [0, 0],
       [canvasWidth, 0],

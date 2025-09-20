@@ -1,113 +1,128 @@
 import cdt2d from "https://cdn.jsdelivr.net/npm/cdt2d@1.0.0/+esm";
-import Utils from "./utils.js";
+import Utils, { Matrix } from "./utils.js";
+import Renderer from "./renderer.js";
 
-class WebGLAPP {
-  vertexShaderSource = `
-    attribute vec2 a_position;
-
-    uniform mat3 u_matrix;
-
-    void main() {
-      gl_Position = vec4((u_matrix * vec3(a_position, 1)).xy, 0, 1);
-      gl_PointSize = 6.0;
-    }
-  `;
-
-  fragmentShaderSource = `
-    precision mediump float;
-
-    uniform vec4 u_color;
-
-    void main() {
-      gl_FragColor = u_color;
-    }
-  `;
-
-  createShader(type, source) {
-    const shader = this.gl.createShader(type);
-    this.gl.shaderSource(shader, source);
-    this.gl.compileShader(shader);
-    const success = this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS);
-
-    if (success) {
-      return shader;
-    }
-
-    console.log(this.gl.getShaderInfoLog(shader));
-    this.gl.deleteShader(shader);
+class App {
+  drawScene() {
+    this.renderer.clear();
+    this.transformObstacle();
+    this.drawTriangles();
+    this.drawPeople();
+    this.drawObstacle();
   }
 
-  createProgram(vertexShader, fragmentShader) {
-    const program = this.gl.createProgram();
-    this.gl.attachShader(program, vertexShader);
-    this.gl.attachShader(program, fragmentShader);
-    this.gl.linkProgram(program);
-    const success = this.gl.getProgramParameter(program, this.gl.LINK_STATUS);
-    if (success) {
-      return program;
-    }
+  transformObstacle() {
+    this.transformedObstacleVertices = [];
 
-    console.log(this.gl.getProgramInfoLog(program));
-    this.gl.deleteProgram(program);
+    let transformationMatrix = Matrix.multiplyManyMM(
+      Matrix.translation(this.obstacleCenter[0], this.obstacleCenter[1]),
+      Matrix.translation(this.translate[0], this.translate[1]),
+      Matrix.rotation(this.rotate),
+      Matrix.scaling(this.scale, this.scale),
+      Matrix.translation(-this.obstacleCenter[0], -this.obstacleCenter[1])
+    );
+
+    for (let i = 0; i < this.obstacleVertices.length; i++) {
+      const transformedVertex = Matrix.multiplyMV(transformationMatrix, [
+        ...this.obstacleVertices[i],
+        1,
+      ]);
+
+      this.transformedObstacleVertices.push(transformedVertex.slice(0, 2));
+    }
   }
 
-  initializeAndRender() {
-    this.canvas = document.querySelector("canvas");
-    this.gl = this.canvas.getContext("webgl");
+  drawTriangles() {
+    const triangulatedVertices = [];
 
-    this.vertexShader = this.createShader(
-      this.gl.VERTEX_SHADER,
-      this.vertexShaderSource
-    );
-    this.fragmentShader = this.createShader(
-      this.gl.FRAGMENT_SHADER,
-      this.fragmentShaderSource
-    );
+    // Using the transformed obstacle vertices for triangulation
+    for (let i = 0; i < this.transformedObstacleVertices.length; i++) {
+      this.vertices[i] = this.transformedObstacleVertices[i];
+    }
 
-    this.program = this.createProgram(this.vertexShader, this.fragmentShader);
+    // Edges of the obstacle to be used as constraints in triangulation
+    const edges = [
+      [0, 1],
+      [1, 2],
+      [2, 3],
+      [3, 0],
+      [0, 2],
+    ];
 
-    this.positionBuffer = this.gl.createBuffer();
-    this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
+    // Triangulate the vertices with the obstacle edges as constraints
+    const triangles = cdt2d(this.vertices, edges);
 
-    this.positionAttributeLocation = this.gl.getAttribLocation(
-      this.program,
-      "a_position"
-    );
-    this.matrixUniformLocation = this.gl.getUniformLocation(
-      this.program,
-      "u_matrix"
-    );
-    this.colorUniformLocation = this.gl.getUniformLocation(
-      this.program,
-      "u_color"
-    );
+    // Flatten the triangulated vertices array for rendering
+    triangles.forEach((arr) => {
+      arr.forEach((idx) => {
+        triangulatedVertices.push(...this.vertices[idx]);
+      });
+    });
 
-    this.gl.viewport(0, 0, this.gl.canvas.width, this.gl.canvas.height);
-    this.gl.clearColor(0, 0, 0, 0);
+    let red = 0,
+      green = 0,
+      blue = 0;
 
-    this.gl.useProgram(this.program);
+    this.renderer.setPositionBuffer(triangulatedVertices);
 
-    this.gl.enableVertexAttribArray(this.positionAttributeLocation);
-    this.gl.vertexAttribPointer(
-      this.positionAttributeLocation,
-      2,
-      this.gl.FLOAT,
-      false,
-      0,
-      0
-    );
+    for (let i = 0; i < triangulatedVertices.length; i += 6) {
+      const density = Utils.countPointsInTriangle(
+        this.peopleVertices,
+        triangulatedVertices.slice(i, i + 6)
+      );
 
-    // Setting projection matrix in the vertex shader
-    this.gl.uniformMatrix3fv(
-      this.matrixUniformLocation,
-      false,
-      Utils.projectionMatrix(this.gl.canvas.width, this.gl.canvas.height)
-    );
+      if (this.thresholdDensity > density) {
+        blue++;
+      } else if (this.thresholdDensity < density) {
+        red++;
+      } else {
+        green++;
+      }
 
-    this.obstacleVertices = Utils.getCenteredRect(100, 100, this.gl);
-    this.canvasCorners = Utils.getCanvasCorners(this.gl);
+      const color = Utils.colorBasedOnDensity(density, this.thresholdDensity);
 
-    // First 4 vertices are obstacle vertices, Next 4 are canvas corners and rest are random vertices
+      this.renderer.setColorUniform(color);
+      this.renderer.drawTriangle(i / 2, 3);
+
+      this.renderer.setColorUniform([0, 0, 0, 1]);
+      this.renderer.drawLoop(i / 2, 3);
+    }
+
+    this.setTriangleCount(red, green, blue);
+  }
+
+  drawPeople() {
+    const peopleVertices = this.peopleVertices.flat();
+
+    this.renderer.setPositionBuffer(peopleVertices);
+    this.renderer.setColorUniform([0, 0, 0, 0.6]);
+    this.renderer.drawPoints(0, this.peopleVertices.length);
+  }
+
+  drawObstacle() {
+    const obstacleVertices = [];
+
+    for (let i = 0; i <= 2; i++) {
+      obstacleVertices.push(...this.transformedObstacleVertices[i]);
+    }
+
+    for (let i = 2; i <= 4; i++) {
+      obstacleVertices.push(...this.transformedObstacleVertices[i % 4]);
+    }
+
+    this.renderer.setPositionBuffer(obstacleVertices);
+    this.renderer.setColorUniform([0, 0, 0, 1]);
+    this.renderer.drawTriangle(0, 6);
+  }
+
+  drawInitialScene() {
+    // Vertices of the obstacle (Centered in the canvas)
+    this.obstacleVertices = Utils.getCenteredRect(100, 100, this.canvas);
+    this.obstacleCenter = [this.canvas.width / 2, this.canvas.height / 2];
+
+    this.canvasCorners = Utils.getCanvasCorners(this.canvas);
+
+    // Vertices for triangulation, First 4 vertices are obstacle vertices, Next 4 are canvas corners and rest are random vertices
     this.vertices = Utils.poissonDiskSampling(
       this.canvas.width,
       this.canvas.height,
@@ -127,144 +142,7 @@ class WebGLAPP {
     this.drawScene();
   }
 
-  transformObstacle() {
-    this.transformedObstacleVertices = [];
-
-    let transformationMatrix = Utils.multiplyManyMM(
-      Utils.translationMatrix(this.canvas.width / 2, this.canvas.height / 2),
-      Utils.translationMatrix(this.translate[0], this.translate[1]),
-      Utils.rotationMatrix(this.rotate),
-      Utils.scalingMatrix(this.scale, this.scale),
-      Utils.translationMatrix(-this.canvas.width / 2, -this.canvas.height / 2)
-    );
-
-    for (let i = 0; i < this.obstacleVertices.length; i++) {
-      const transformedVertex = Utils.multiplyMV(transformationMatrix, [
-        ...this.obstacleVertices[i],
-        1,
-      ]);
-
-      this.transformedObstacleVertices.push(transformedVertex.slice(0, 2));
-    }
-  }
-
-  drawTriangles() {
-    this.triangulatedVertices = [];
-
-    const vertices = this.vertices;
-
-    for (let i = 0; i < this.transformedObstacleVertices.length; i++) {
-      vertices[i] = this.transformedObstacleVertices[i];
-    }
-
-    const edges = [
-      [0, 1],
-      [1, 2],
-      [2, 3],
-      [3, 0],
-      [0, 2],
-    ];
-
-    const triangles = cdt2d(vertices, edges);
-    triangles.forEach((arr) => {
-      arr.forEach((idx) => {
-        this.triangulatedVertices.push(...vertices[idx]);
-      });
-    });
-
-    this.gl.bufferData(
-      this.gl.ARRAY_BUFFER,
-      new Float32Array(this.triangulatedVertices),
-      this.gl.STATIC_DRAW
-    );
-
-    this.redCount = 0;
-    this.greenCount = 0;
-    this.blueCount = 0;
-
-    for (let i = 0; i < this.triangulatedVertices.length; i += 6) {
-      const populationDensity = Utils.countPointsInTriangle(
-        this.peopleVertices,
-        this.triangulatedVertices.slice(i, i + 6)
-      );
-
-      if (this.thresholdDensity > populationDensity) {
-        this.blueCount++;
-      } else if (this.thresholdDensity < populationDensity) {
-        this.redCount++;
-      } else {
-        this.greenCount++;
-      }
-
-      const color = Utils.colorBasedOnDensity(
-        populationDensity,
-        this.thresholdDensity
-      );
-
-      this.gl.uniform4f(this.colorUniformLocation, ...color);
-      this.gl.drawArrays(this.gl.TRIANGLES, i / 2, 3);
-
-      this.gl.uniform4f(this.colorUniformLocation, 0, 0, 0, 1);
-      this.gl.drawArrays(this.gl.LINE_LOOP, i / 2, 3);
-    }
-  }
-
-  drawPeople() {
-    const peopleVertices = this.peopleVertices.flat();
-
-    this.gl.bufferData(
-      this.gl.ARRAY_BUFFER,
-      new Float32Array(peopleVertices),
-      this.gl.DYNAMIC_DRAW
-    );
-
-    this.gl.uniform4f(this.colorUniformLocation, 0, 0, 0, 0.6);
-    this.gl.drawArrays(this.gl.POINTS, 0, peopleVertices.length / 2);
-  }
-
-  drawObstacle() {
-    const obstacleVertices = [];
-
-    for (let i = 0; i <= 2; i++) {
-      obstacleVertices.push(...this.transformedObstacleVertices[i]);
-    }
-
-    for (let i = 2; i <= 4; i++) {
-      obstacleVertices.push(...this.transformedObstacleVertices[i % 4]);
-    }
-
-    this.gl.bufferData(
-      this.gl.ARRAY_BUFFER,
-      new Float32Array(obstacleVertices),
-      this.gl.DYNAMIC_DRAW
-    );
-
-    this.gl.uniform4f(this.colorUniformLocation, 0, 0, 0, 1);
-    this.gl.drawArrays(this.gl.TRIANGLES, 0, 6);
-  }
-
-  drawScene() {
-    this.gl.clear(this.gl.COLOR_BUFFER_BIT);
-
-    this.transformObstacle();
-    this.drawTriangles();
-    this.drawPeople();
-    this.drawObstacle();
-
-    this.setCount();
-  }
-
-  setCount() {
-    const redCountElement = document.querySelector("#redCount span");
-    const greenCountElement = document.querySelector("#greenCount span");
-    const blueCountElement = document.querySelector("#blueCount span");
-
-    redCountElement.textContent = this.redCount;
-    greenCountElement.textContent = this.greenCount;
-    blueCountElement.textContent = this.blueCount;
-  }
-
-  sliderEventListener() {
+  handleSliderActions() {
     const rangeMapping = {
       translateX: [-this.canvas.width / 2, this.canvas.width / 2],
       translateY: [-this.canvas.height / 2, this.canvas.height / 2],
@@ -346,9 +224,79 @@ class WebGLAPP {
     });
   }
 
-  // Helper to sync sliders with internal state
-  syncSlidersFromState() {
-    if (!this.sliderElements) return;
+  handleMouseActions() {
+    this.ACTION = null;
+
+    this.canvas.addEventListener("mousedown", (e) => {
+      const rect = this.canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      if (
+        Utils.isPointInQuadrilateral(this.transformedObstacleVertices, [x, y])
+      ) {
+        this.ACTION = "moveObstacle";
+        this.prevCoord = [x, y];
+        this.canvas.style.cursor = "move";
+        return;
+      }
+
+      for (let i = 0; i < this.peopleVertices.length; i++) {
+        const dx = this.peopleVertices[i][0] - x;
+        const dy = this.peopleVertices[i][1] - y;
+
+        if (dx * dx + dy * dy < 8 * 8) {
+          this.ACTION = "movePerson";
+          this.selectedPersonIndex = i;
+          this.canvas.style.cursor = "pointer";
+          return;
+        }
+      }
+    });
+
+    this.canvas.addEventListener("mousemove", (e) => {
+      const rect = this.canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      if (this.ACTION === "movePerson") {
+        this.peopleVertices[this.selectedPersonIndex] = [x, y];
+      }
+
+      if (this.ACTION === "moveObstacle") {
+        this.translate[0] += x - this.prevCoord[0];
+        this.translate[1] += y - this.prevCoord[1];
+        this.prevCoord = [x, y];
+      }
+
+      if (this.ACTION == "movePerson" || this.ACTION === "moveObstacle") {
+        this.syncUIState();
+        this.drawScene();
+      }
+    });
+
+    this.canvas.addEventListener("mouseup", (e) => {
+      this.ACTION = null;
+      this.canvas.style.cursor = "default";
+    });
+
+    this.canvas.addEventListener(
+      "wheel",
+      (e) => {
+        if (e.deltaY < 0) {
+          this.scale = Math.min(this.scale + 0.1, 3);
+        } else {
+          this.scale = Math.max(this.scale - 0.1, 0.1);
+        }
+        this.scale = Math.round(this.scale * 10) / 10;
+        this.syncUIState();
+        this.drawScene();
+      },
+      { passive: false }
+    );
+  }
+
+  syncUIState() {
     if (this.sliderElements.translateX) {
       this.sliderElements.translateX.input.value = this.translate[0];
       this.sliderElements.translateX.valueDisplay.textContent =
@@ -378,90 +326,30 @@ class WebGLAPP {
     }
   }
 
-  canvasEventListener() {
-    this.canvas.addEventListener("mousedown", (e) => {
-      const rect = this.canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
+  setTriangleCount(red, green, blue) {
+    const redCountElement = document.querySelector("#redCount span");
+    const greenCountElement = document.querySelector("#greenCount span");
+    const blueCountElement = document.querySelector("#blueCount span");
 
-      if (
-        Utils.isPointInQuadrilateral(this.transformedObstacleVertices, [x, y])
-      ) {
-        this.selectedObstacle = true;
-        this.lastCoord = [x, y];
-        this.canvas.style.cursor = "move";
-        return;
-      }
-
-      for (let i = 0; i < this.peopleVertices.length; i++) {
-        const dx = this.peopleVertices[i][0] - x;
-        const dy = this.peopleVertices[i][1] - y;
-
-        if (dx * dx + dy * dy < 8 * 8) {
-          this.selectedPersonIndex = i;
-          this.canvas.style.cursor = "pointer";
-          return;
-        }
-      }
-    });
-
-    this.canvas.addEventListener("mousemove", (e) => {
-      const rect = this.canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
-      let updated = false;
-      if (this.selectedPersonIndex !== null) {
-        this.peopleVertices[this.selectedPersonIndex] = [x, y];
-        updated = true;
-      }
-
-      if (this.selectedObstacle) {
-        this.translate[0] += x - this.lastCoord[0];
-        this.translate[1] += y - this.lastCoord[1];
-        this.lastCoord = [x, y];
-        updated = true;
-      }
-
-      if (updated) {
-        this.syncSlidersFromState();
-        this.drawScene();
-      }
-    });
-
-    this.canvas.addEventListener("mouseup", (e) => {
-      this.selectedPersonIndex = null;
-      this.selectedObstacle = null;
-      this.canvas.style.cursor = "default";
-    });
-
-    this.canvas.addEventListener(
-      "wheel",
-      (e) => {
-        if (e.deltaY < 0) {
-          this.scale = Math.min(this.scale + 0.1, 3);
-        } else {
-          this.scale = Math.max(this.scale - 0.1, 0.1);
-        }
-        this.scale = Math.round(this.scale * 10) / 10;
-        this.syncSlidersFromState();
-        this.drawScene();
-      },
-      { passive: false }
-    );
+    redCountElement.textContent = red;
+    greenCountElement.textContent = green;
+    blueCountElement.textContent = blue;
   }
 
   constructor() {
+    this.canvas = document.querySelector("canvas");
+
     this.translate = [0, 0];
     this.scale = 1;
     this.rotate = 0;
     this.thresholdDensity = 4;
     this.population = 100;
 
-    this.initializeAndRender();
-    this.sliderEventListener();
-    this.canvasEventListener();
+    this.renderer = new Renderer();
+    this.drawInitialScene();
+    this.handleSliderActions();
+    this.handleMouseActions();
   }
 }
 
-const app = new WebGLAPP();
+const app = new App();
